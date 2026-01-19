@@ -4,7 +4,6 @@ Description=Clear recently-used.xbel continuously
 [Service]
 ExecStart=%h/.local/bin/clearrecent
 Restart=on-failure
-KillSignal=SIGTERM
 
 [Install]
 WantedBy=default.target
