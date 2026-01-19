@@ -1,0 +1,135 @@
+#!/bin/bash
+
+#-----------------------------------------------------------------------------------------------------------------------
+# This script is for automated cleanup and install of arkenfox (user.js) with custom (user-overrides.js) for Firefox-ESR
+# https://github.com/arkenfox/user.js
+# 
+# This script only works for Firefox releases 140 and above, below versions are NOT SUPPORTED!!!
+#
+#-----------------------------------------------------------------------------------------------------------------------
+# THIS SCRIPT WILL NUKE YOUR ~/.mozilla folder, BACKUP YOUR PROFILES OTHERWISE YOU WILL LOSE THEM FOREVER!!!
+#-----------------------------------------------------------------------------------------------------------------------
+
+set -e
+
+log() { echo "[INFO] $1"; }
+error_exit() { echo "[ERROR] $1"; exit 1; }
+
+# Check dependencies
+command -v curl &> /dev/null || error_exit "curl is not installed. Please install curl: (deb) sudo apt-get install curl"
+
+# Validate browser command exists
+if ! command -v "firefox-esr" &> /dev/null; then
+    error_exit "Browser command 'firefox-esr' not found. Please install Firefox ESR: (deb) sudo apt-get install firefox-esr"
+fi
+
+log "Using browser: firefox-esr"
+
+# Set base directory
+cleandir="$HOME/.mozilla"
+browserdir="$cleandir/firefox"
+profilesini="$browserdir/profiles.ini"
+
+# Check if Firefox is running
+if pgrep -f "firefox-esr" > /dev/null; then
+    error_exit "Firefox is currently running. Please close ALL Firefox windows and try again."
+fi
+
+# User confirmation before proceeding
+read -p "This script WILL DELETE ~/.mozilla. Ensure you have backups. Continue? (y/N) " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    error_exit "Aborted by user."
+fi
+
+# Prepare directories
+log "Cleaning up existing Firefox profile data."
+[ -d "$cleandir" ] && rm -rf "$cleandir"
+mkdir -p "$cleandir"
+[ -d "$cleandir" ] || error_exit "Failed to create directory $cleandir. Check permissions or disk space."
+
+# Start Firefox in headless mode
+log "Starting firefox-esr in headless mode to create default profile."
+firefox-esr --headless --disable-gpu &
+sleep 5
+
+# Check if Firefox started successfully
+if ! pgrep -f "firefox-esr" > /dev/null; then
+    error_exit "Failed to start firefox-esr. Check if it is properly installed."
+fi
+
+# Kill Firefox by name
+pkill -f "firefox-esr"
+
+# Validate profiles.ini
+[ -f "$profilesini" ] || error_exit "profiles.ini not found at $profilesini. firefox-esr may not be properly ran."
+
+# Simple profile detection - look for Profile0 section and extract Path
+profile_path=$(sed -n '/^\[Profile0\]/,/^\[/p' "$profilesini" | grep "^Path=" | head -n 1 | cut -d= -f2 | tr -d '\r\n')
+[ -z "$profile_path" ] && error_exit "Could not determine profile path from profiles.ini. The file format may be unexpected."
+
+# Set full profile directory path
+pdir="$browserdir/$profile_path"
+
+# Validate profile directory
+[[ "$pdir" != "$HOME"* ]] && error_exit "Profile directory $pdir is not within HOME directory. Aborting for safety."
+[ -d "$pdir" ] || error_exit "Profile directory $pdir does not exist. firefox-esr profile creation may have failed."
+
+log "Using profile directory: $pdir"
+
+# Download files
+overrides="$pdir/user-overrides.js"
+log "Downloading user-overrides.js..."
+if ! curl -fsSL "https://raw.githubusercontent.com/xls69/personal/refs/heads/master/files/novp9/user-overrides.js" -o "$overrides"; then
+    error_exit "Failed to download user-overrides.js. Check your internet connection."
+fi
+
+updater="$pdir/updater.sh"
+log "Downloading updater.sh..."
+if ! curl -fsSL "https://raw.githubusercontent.com/arkenfox/user.js/refs/heads/master/updater.sh" -o "$updater"; then
+    error_exit "Failed to download updater.sh. Check your internet connection."
+fi
+
+sleep 1
+
+# Run updater
+chmod +x "$updater"
+log "Running updater.sh..."
+(cd "$pdir" && ./updater.sh -e) || error_exit "Updater script failed. Check if the https://github.com/arkenfox/user.js repository is accessible."
+
+# Install extensions
+addonlist="ublock-origin"
+addontmp="$(mktemp -d)"
+trap 'rm -rf "$addontmp"' EXIT
+mkdir -p "$pdir/extensions/"
+
+retry_curl() {
+    local url="$1" output="$2" retries=3 count=0
+    while ((count < retries)); do
+        if curl -fsSL "$url" -o "$output"; then
+            return 0
+        fi
+        ((count++))
+        log "Retrying $url ($count/$retries)..."
+        sleep 3
+    done
+    error_exit "Failed to download $url after $retries attempts. Check your internet connection."
+}
+
+for addon in $addonlist; do
+    log "Downloading extension: $addon"
+    addonurl="$(curl -fsSL --connect-timeout 5 "https://addons.mozilla.org/en-US/firefox/addon/${addon}/" |
+        grep -o 'https://addons.mozilla.org/firefox/downloads/file/[^"]*' | head -n 1)"
+
+    [ -z "$addonurl" ] && error_exit "Could not find download URL for $addon. The addon page structure may have changed."
+
+    file="${addonurl##*/}"
+    retry_curl "$addonurl" "$addontmp/$file"
+
+    id="$(unzip -p "$addontmp/$file" manifest.json | grep -oP '"id"\s*:\s*"\K[^"]+')"
+    [ -z "$id" ] && error_exit "Could not extract ID for $addon. The downloaded file may not be a valid Firefox extension."
+
+    mv "$addontmp/$file" "$pdir/extensions/$id.xpi" || error_exit "Failed to move extension $addon to $pdir/extensions/."
+done
+
+log "Script completed successfully. firefox-esr has been configured with arkenfox/user.js and uBlock Origin."

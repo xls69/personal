@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# needs inotify-tools installed for script to work (other package name for other distros than debian)
+trap 'exit 0' SIGTERM SIGINT
+
+file="$HOME/.local/share/recently-used.xbel"
+echo "" > "$file"
+
+while inotifywait -e modify -e delete_self "$file" 2>/dev/null; do
+    echo "" > "$file"
+done
