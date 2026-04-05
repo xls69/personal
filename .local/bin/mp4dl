@@ -1,0 +1,19 @@
+#!/bin/bash
+
+outputdir="$HOME/Videos/yt-dlp"
+batchfile="$HOME/.local/bin/mp4url.txt"
+
+yt-dlp \
+  --format "bestvideo[vcodec^=hev1]+bestaudio/bestvideo[vcodec^=avc1]+bestaudio/best" \
+  --verbose \
+  --force-ipv4 \
+  --check-formats \
+  --concurrent-fragments 3 \
+  --audio-quality 0 \
+  --no-write-comments \
+  --embed-metadata \
+  --embed-thumbnail \
+  --merge-output-format mp4 \
+  --output "$outputdir/%(title)s.%(ext)s" \
+  --throttled-rate 100K \
+  --batch-file "$batchfile"

@@ -1,0 +1,20 @@
+#!/bin/bash
+
+outputdir="$HOME/Music/yt-dlp"
+batchfile="$HOME/.local/bin/mp3url.txt"
+
+yt-dlp \
+  --format "bestaudio/best" \
+  --verbose \
+  --force-ipv4 \
+  --check-formats \
+  --concurrent-fragments 3 \
+  --extract-audio \
+  --audio-format mp3 \
+  --audio-quality 0 \
+  --no-write-comments \
+  --embed-metadata \
+  --embed-thumbnail \
+  --output "$outputdir/%(title)s.%(ext)s" \
+  --throttled-rate 100K \
+  --batch-file "$batchfile"
