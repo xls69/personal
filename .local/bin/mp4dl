@@ -4,12 +4,14 @@ outputdir="$HOME/Videos/yt-dlp"
 batchfile="$HOME/.local/bin/mp4url.txt"
 
 yt-dlp \
-  --format "bestvideo[vcodec^=hev1]+bestaudio/bestvideo[vcodec^=avc1]+bestaudio/best" \
   --verbose \
   --force-ipv4 \
+  --remote-components ejs:github \
+  --cookies-from-browser "brave:~/.config/BraveSoftware/YouTube-DIR/Default/" \
   --check-formats \
   --concurrent-fragments 3 \
   --audio-quality 0 \
+  --sponsorblock-remove "sponsor,intro,outro,selfpromo,interaction,music_offtopic" \
   --no-write-comments \
   --embed-metadata \
   --embed-thumbnail \

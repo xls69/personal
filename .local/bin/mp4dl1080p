@@ -1,0 +1,22 @@
+#!/bin/bash
+
+outputdir="$HOME/Videos/yt-dlp"
+batchfile="$HOME/.local/bin/mp4url.txt"
+
+yt-dlp \
+  --format "bestvideo*[height<=1080]+bestaudio/best[height<=1080]" \
+  --verbose \
+  --force-ipv4 \
+  --remote-components ejs:github \
+  --cookies-from-browser "brave:~/.config/BraveSoftware/YouTube-DIR/Default/" \
+  --check-formats \
+  --concurrent-fragments 3 \
+  --audio-quality 0 \
+  --sponsorblock-remove "sponsor,intro,outro,selfpromo,interaction,music_offtopic" \
+  --no-write-comments \
+  --embed-metadata \
+  --embed-thumbnail \
+  --merge-output-format mp4 \
+  --output "$outputdir/%(title)s.%(ext)s" \
+  --throttled-rate 100K \
+  --batch-file "$batchfile"
